@@ -1,6 +1,5 @@
 pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
-plugins { id("com.facebook.react.settings")
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0' }
+plugins { id("com.facebook.react.settings") }
 // If `nodeBinary` is set in ~/.gradle/gradle.properties (used to handle
 // Android Studio launching with a stripped PATH that excludes Homebrew), invoke
 // the RN CLI directly via that node binary instead of relying on `npx` being on
