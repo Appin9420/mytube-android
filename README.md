@@ -18,28 +18,21 @@
 - 界面支持中文 / 英文 / 西语，跟随应用语言
 - 忘记密码：清除应用数据即可重置（这是屏幕锁，不是安全边界）
 
-### 2. 修复：语言设置无法保存
+### 2. 新增：界面语言本地记忆
 
-原版把语言选择存到服务端设置接口，但后端的设置保存白名单会丢弃 `language` 字段，导致每次重启都变回英文。现在语言选择**保存在设备本地**（MMKV），启动时自动恢复；界面三语可用。
+语言选择保存在设备本地（MMKV），重启后保持不变；界面支持中文 / 英文 / 西语。
 
 ### 3. 更换：应用启动图标
 
-原版一直是 React Native 模板的默认安卓机器人图标。现替换为 MyTube 官方 logo 的全套图标：传统方形/圆形（5 个密度）+ Android 8+ 自适应图标（黑色背景与 logo 无缝衔接）。
+替换为 MyTube 官方 logo 的全套图标：传统方形/圆形（5 个密度）+ Android 8+ 自适应图标（黑色背景与 logo 无缝衔接）。
 
-### 4. 修复：react-native-mmkv v4 兼容
+### 4. 构建：Gradle 9 环境适配
 
-MMKV v4 移除了实例的 `delete()` 方法（改名 `remove()`），原版存储代码在触发清理路径时会直接崩溃。已加适配层，同时修复了后端地址存储模块的同类潜伏 bug。
+命令行构建需本机安装 JDK 21 + JDK 17 与 Android SDK，详见 `documents/build-from-source.md`。
 
-### 5. 构建：Gradle 9 环境适配
+---
 
-- 移除与 Gradle 9 不兼容的 foojay-resolver-convention 插件（1.0.0 在 Gradle 9 下解析工具链必崩）
-- 解除 daemon JVM 的 JETBRAINS 厂商钉死（Temurin JDK 21 亦可构建）
-- 命令行构建需本机安装 JDK 21 + JDK 17 与 Android SDK，详见 `documents/build-from-source.md`
-
-### 6. 其他
-
-- 新增依赖：`js-sha256`（纯 JS 哈希，无原生模块）
-- 与上游的功能与界面完全兼容，连接自托管 MyTube 后端的使用方式不变
+（以下为原项目英文 README / The original English README follows.）
 
 ---
 
