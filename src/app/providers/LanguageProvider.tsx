@@ -7,6 +7,10 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { useAuth } from '../../core/auth/AuthContext';
 import { useSettingsQuery } from '../../core/repositories';
+import {
+  getStoredLanguage,
+  setStoredLanguage,
+} from '../../core/config/languageStorage';
 
 const enTranslation = {
   appName: 'MyTube',
@@ -63,6 +67,23 @@ const enTranslation = {
     'Startup is taking longer than expected. Check backend URL/server and retry.',
   retryStartup: 'Retry startup',
   changeBackendUrl: 'Change backend URL',
+
+  appLock: 'App lock',
+  appLockEnable: 'Enable app lock',
+  appLockChange: 'Change app lock password',
+  appLockDisable: 'Disable app lock',
+  appLockCurrentPassword: 'Current password',
+  appLockNewPassword: 'New password (min 4 chars)',
+  appLockConfirmPassword: 'Confirm new password',
+  appLockMismatch: 'Passwords do not match',
+  appLockTooShort: 'Password must be at least 4 characters',
+  appLockEnterPassword: 'Enter app lock password',
+  appLockUnlock: 'Unlock',
+  appLockWrongPassword: 'Wrong password, {{count}} attempts left',
+  appLockLockedOut: 'Too many attempts, retry in {{seconds}}s',
+  appLockHint:
+    'Screen lock only, not a security boundary. Forgot the password? Clear the app data in system settings.',
+  appLockSaved: 'App lock updated.',
 };
 
 const esTranslation = {
@@ -120,6 +141,23 @@ const esTranslation = {
     'El inicio está tardando más de lo esperado. Verifica la URL del servidor y reintenta.',
   retryStartup: 'Reintentar inicio',
   changeBackendUrl: 'Cambiar URL del servidor',
+
+  appLock: 'Bloqueo de aplicación',
+  appLockEnable: 'Activar bloqueo de aplicación',
+  appLockChange: 'Cambiar contraseña de bloqueo',
+  appLockDisable: 'Desactivar bloqueo de aplicación',
+  appLockCurrentPassword: 'Contraseña actual',
+  appLockNewPassword: 'Nueva contraseña (mín. 4)',
+  appLockConfirmPassword: 'Confirmar nueva contraseña',
+  appLockMismatch: 'Las contraseñas no coinciden',
+  appLockTooShort: 'Mínimo 4 caracteres',
+  appLockEnterPassword: 'Introduce la contraseña de bloqueo',
+  appLockUnlock: 'Desbloquear',
+  appLockWrongPassword: 'Contraseña incorrecta, {{count}} intentos restantes',
+  appLockLockedOut: 'Demasiados intentos, reintenta en {{seconds}}s',
+  appLockHint:
+    'Solo bloqueo de pantalla, no es un límite de seguridad. ¿Olvidaste la contraseña? Borra los datos de la app.',
+  appLockSaved: 'Bloqueo de aplicación actualizado.',
 };
 
 const zhTranslation = {
@@ -176,6 +214,22 @@ const zhTranslation = {
   startupSlow: '启动时间比预期更长。请检查服务器地址并重试。',
   retryStartup: '重试启动',
   changeBackendUrl: '更改服务器地址',
+
+  appLock: '启动密码',
+  appLockEnable: '开启启动密码',
+  appLockChange: '修改启动密码',
+  appLockDisable: '关闭启动密码',
+  appLockCurrentPassword: '当前密码',
+  appLockNewPassword: '新密码(至少 4 位)',
+  appLockConfirmPassword: '确认新密码',
+  appLockMismatch: '两次输入不一致',
+  appLockTooShort: '密码至少 4 位',
+  appLockEnterPassword: '输入启动密码',
+  appLockUnlock: '解锁',
+  appLockWrongPassword: '密码错误,剩余 {{count}} 次机会',
+  appLockLockedOut: '尝试次数过多,{{seconds}} 秒后再试',
+  appLockHint: '仅屏幕锁,非安全边界。忘记密码请在系统设置中清除本应用数据。',
+  appLockSaved: '启动密码已更新。',
 };
 
 const resources = {
@@ -212,7 +266,9 @@ export const LOCALE_LABEL_KEYS: Record<(typeof SUPPORTED_LOCALE_CODES)[number], 
 if (!i18n.isInitialized) {
   i18n.use(initReactI18next).init({
     resources,
-    lng: 'en',
+    // Restore the last locale chosen on this device; the backend settings API
+    // does not persist a language field.
+    lng: normalizeLocaleCode(getStoredLanguage() ?? undefined),
     fallbackLng: 'en',
     interpolation: { escapeValue: false },
   });
@@ -237,6 +293,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const setLanguage = useCallback((lang: string) => {
     const nextLanguage = normalizeLocaleCode(lang, normalizeLocaleCode(i18n.language));
     i18n.changeLanguage(nextLanguage);
+    setStoredLanguage(nextLanguage);
     setLanguageState(nextLanguage);
   }, []);
 
