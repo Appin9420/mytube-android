@@ -18,21 +18,34 @@ function createMemoryStorage(): BackendUrlStorage {
 }
 
 function createStorage(): BackendUrlStorage {
+  let raw: BackendUrlStorage & { remove?: (key: string) => unknown } =
+    createMemoryStorage();
   try {
     const mmkv = require('react-native-mmkv') as {
       MMKV?: new (config?: { id?: string }) => BackendUrlStorage;
       createMMKV?: (config?: { id?: string }) => BackendUrlStorage;
     };
     if (typeof mmkv.MMKV === 'function') {
-      return new mmkv.MMKV({ id: 'backend-config-storage' });
-    }
-    if (typeof mmkv.createMMKV === 'function') {
-      return mmkv.createMMKV({ id: 'backend-config-storage' });
+      raw = new mmkv.MMKV({ id: 'backend-config-storage' });
+    } else if (typeof mmkv.createMMKV === 'function') {
+      raw = mmkv.createMMKV({ id: 'backend-config-storage' });
     }
   } catch {
-    // fall through to in-memory fallback
+    // keep the in-memory fallback
   }
-  return createMemoryStorage();
+  return {
+    getString: key => raw.getString(key),
+    set: (key, value) => raw.set(key, value),
+    // react-native-mmkv v4 renamed delete() to remove(); adapt so callers
+    // can keep using the classic name.
+    delete: key => {
+      if (typeof raw.remove === 'function') {
+        raw.remove(key);
+      } else {
+        raw.delete(key);
+      }
+    },
+  };
 }
 
 const storage = createStorage();

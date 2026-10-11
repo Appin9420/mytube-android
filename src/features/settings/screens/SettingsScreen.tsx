@@ -22,7 +22,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SettingsRepository, settingsQueryKeys } from '../../../core/repositories';
 import { useAuth } from '../../../core/auth/AuthContext';
 import { canEditSettings, canMutate } from '../../../core/utils/roleGate';
-import { useSnackbar, useLanguage } from '../../../app/providers';
+import { useSnackbar, useLanguage, useAppLock } from '../../../app/providers';
+import { APP_LOCK_MIN_PASSWORD_LENGTH, getLockoutRemainingMs, getRemainingAttempts } from '../../../core/config/appLockStorage';
 import {
   SUPPORTED_LOCALE_CODES,
   LOCALE_LABEL_KEYS,
@@ -41,6 +42,7 @@ interface SettingsScreenProps {
 export function SettingsScreen({ onLogout, onChangeBackendUrl }: SettingsScreenProps) {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguage();
+  const { isEnabled: appLockEnabled, enable: enableAppLock, disable: disableAppLock, change: changeAppLock } = useAppLock();
   const { role, loginRequired, logout } = useAuth();
   const queryClient = useQueryClient();
   const { show, showError } = useSnackbar();
@@ -64,6 +66,13 @@ export function SettingsScreen({ onLogout, onChangeBackendUrl }: SettingsScreenP
   );
   const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
 
+  type AppLockModalMode = 'enable' | 'disable' | 'change';
+  const [appLockModal, setAppLockModal] = useState<AppLockModalMode | null>(null);
+  const [appLockCurrent, setAppLockCurrent] = useState('');
+  const [appLockNew, setAppLockNew] = useState('');
+  const [appLockConfirm, setAppLockConfirm] = useState('');
+  const [appLockError, setAppLockError] = useState<string | null>(null);
+
   const selectedLanguageCode = canEditGeneralSettings
     ? editLanguage
     : normalizeLocaleCode(language);
@@ -76,6 +85,64 @@ export function SettingsScreen({ onLogout, onChangeBackendUrl }: SettingsScreenP
     },
     []
   );
+
+  const openAppLockModal = useCallback((mode: AppLockModalMode) => {
+    setAppLockModal(mode);
+    setAppLockCurrent('');
+    setAppLockNew('');
+    setAppLockConfirm('');
+    setAppLockError(null);
+  }, []);
+
+  const handleAppLockSubmit = useCallback(() => {
+    if (appLockModal == null) return;
+    let result: 'ok' | 'wrong' | 'locked' = 'ok';
+    if (appLockModal === 'enable') {
+      if (appLockNew.length < APP_LOCK_MIN_PASSWORD_LENGTH) {
+        setAppLockError(t('appLockTooShort'));
+        return;
+      }
+      if (appLockNew !== appLockConfirm) {
+        setAppLockError(t('appLockMismatch'));
+        return;
+      }
+      enableAppLock(appLockNew);
+    } else if (appLockModal === 'disable') {
+      result = disableAppLock(appLockCurrent);
+    } else {
+      if (appLockNew.length < APP_LOCK_MIN_PASSWORD_LENGTH) {
+        setAppLockError(t('appLockTooShort'));
+        return;
+      }
+      if (appLockNew !== appLockConfirm) {
+        setAppLockError(t('appLockMismatch'));
+        return;
+      }
+      result = changeAppLock(appLockCurrent, appLockNew);
+    }
+    if (result === 'locked') {
+      setAppLockError(
+        t('appLockLockedOut', { seconds: Math.ceil(getLockoutRemainingMs() / 1000) })
+      );
+      return;
+    }
+    if (result === 'wrong') {
+      setAppLockError(t('appLockWrongPassword', { count: getRemainingAttempts() }));
+      return;
+    }
+    setAppLockModal(null);
+    show(t('appLockSaved'));
+  }, [
+    appLockModal,
+    appLockNew,
+    appLockCurrent,
+    appLockConfirm,
+    enableAppLock,
+    disableAppLock,
+    changeAppLock,
+    show,
+    t,
+  ]);
 
   const settingsQuery = useQuery({
     queryKey: settingsQueryKeys.settings,
@@ -279,6 +346,41 @@ export function SettingsScreen({ onLogout, onChangeBackendUrl }: SettingsScreenP
             )}
           </View>
 
+          {canEditGeneralSettings && (
+            <View style={[styles.section, halfCard]}>
+              <Text style={styles.sectionTitle}>{t('appLock')}</Text>
+              {!appLockEnabled ? (
+                <TouchableOpacity
+                  style={styles.languageRow}
+                  onPress={() => openAppLockModal('enable')}
+                  accessibilityLabel={t('appLockEnable')}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.languageValue}>{t('appLockEnable')}</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.languageRow}
+                    onPress={() => openAppLockModal('change')}
+                    accessibilityLabel={t('appLockChange')}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.languageValue}>{t('appLockChange')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.languageRow}
+                    onPress={() => openAppLockModal('disable')}
+                    accessibilityLabel={t('appLockDisable')}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.languageValue}>{t('appLockDisable')}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
+
           {settings != null && (
             <View style={[styles.section, fullCard]}>
               <Text style={styles.sectionTitle}>{t('settings')}</Text>
@@ -464,6 +566,82 @@ export function SettingsScreen({ onLogout, onChangeBackendUrl }: SettingsScreenP
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={appLockModal != null && canEditGeneralSettings}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAppLockModal(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setAppLockModal(null)}>
+          <Pressable style={styles.modalContent} onPress={() => {}}>
+            <Text style={styles.modalTitle}>
+              {appLockModal === 'enable'
+                ? t('appLockEnable')
+                : appLockModal === 'disable'
+                ? t('appLockDisable')
+                : t('appLockChange')}
+            </Text>
+            {appLockModal !== 'enable' && (
+              <>
+                <Text style={styles.label}>{t('appLockCurrentPassword')}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={appLockCurrent}
+                  onChangeText={setAppLockCurrent}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholderTextColor="#888"
+                />
+              </>
+            )}
+            {appLockModal !== 'disable' && (
+              <>
+                <Text style={styles.label}>{t('appLockNewPassword')}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={appLockNew}
+                  onChangeText={setAppLockNew}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholderTextColor="#888"
+                />
+                <Text style={styles.label}>{t('appLockConfirmPassword')}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={appLockConfirm}
+                  onChangeText={setAppLockConfirm}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholderTextColor="#888"
+                />
+              </>
+            )}
+            {appLockError != null && (
+              <Text style={styles.inlineError}>{appLockError}</Text>
+            )}
+            <View style={styles.appLockModalActions}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setAppLockModal(null)}
+              >
+                <Text style={styles.modalCancelText}>{t('actionCancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleAppLockSubmit}
+                accessibilityLabel={t('actionSave')}
+                accessibilityRole="button"
+              >
+                <Text style={styles.saveButtonText}>{t('actionSave')}</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -611,6 +789,13 @@ const styles = StyleSheet.create({
   modalCancelText: {
     color: '#888',
     fontSize: 16,
+  },
+  appLockModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 16,
   },
   label: {
     color: '#aaa',

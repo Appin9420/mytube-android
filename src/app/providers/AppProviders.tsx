@@ -11,6 +11,8 @@ import { AuthProvider, useAuth } from '../../core/auth/AuthContext';
 import { useSettingsQuery } from '../../core/repositories';
 import { SnackbarProvider } from './SnackbarProvider';
 import { LanguageProvider } from './LanguageProvider';
+import { AppLockProvider, useAppLock } from './AppLockProvider';
+import { AppLockScreen } from '../../features/appLock/screens/AppLockScreen';
 import { SidebarProvider } from '../../features/home/context/SidebarContext';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
 
@@ -47,6 +49,16 @@ const paperLightTheme = {
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
+/**
+ * Renders the startup lock screen instead of the app when the device-local
+ * app lock is engaged. Lives inside SnackbarProvider so the lock screen can
+ * use the same messaging plumbing as the rest of the app.
+ */
+function AppLockGate({ children }: { children: React.ReactNode }) {
+  const { locked } = useAppLock();
+  return <>{locked ? <AppLockScreen /> : children}</>;
+}
+
 function normalizeThemeMode(mode: unknown): ThemeMode {
   if (mode === 'light' || mode === 'dark' || mode === 'system') return mode;
   return 'system';
@@ -79,7 +91,11 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           <AppThemeProvider>
             <LanguageProvider>
               <SidebarProvider>
-                <SnackbarProvider>{children}</SnackbarProvider>
+                <AppLockProvider>
+                  <SnackbarProvider>
+                    <AppLockGate>{children}</AppLockGate>
+                  </SnackbarProvider>
+                </AppLockProvider>
               </SidebarProvider>
             </LanguageProvider>
           </AppThemeProvider>
